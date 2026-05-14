@@ -77,7 +77,7 @@ const CONVERSATION = [
     field: "interests", min: 3, max: 8,
     options: [
       "Reading", "Music", "Cooking", "Hiking", "Art", "Sports", "Travel",
-      "Photography", "Writing", "Gardening", "Yoga", "Movies",
+      "Photography", "Writing", "Gardening", "Movies",
       "Coffee", "Tea", "Dancing", "Crafts", "Volunteering",
       "Worship music", "Board games", "Fitness",
     ],

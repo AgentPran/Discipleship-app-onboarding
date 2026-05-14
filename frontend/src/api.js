@@ -6,10 +6,18 @@
  */
 const API_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-const TOKEN_KEY = "discipleship_token";
-const PROFILE_KEY = "discipleship_profile";
-const MATCHES_KEY = "discipleship_matches";
-const REQUESTS_KEY = "discipleship_requests";
+const TOKEN_KEY        = "discipleship_token";
+const MENTEE_TOKEN_KEY = "discipleship_mentee_token"; // always holds the logged-in mentee's token
+const PROFILE_KEY      = "discipleship_profile";
+const MATCHES_KEY      = "discipleship_matches";
+const REQUESTS_KEY     = "discipleship_requests";
+const ROLE_KEY         = "discipleship_demo_role";    // active demo role: mentee | mentor | admin
+
+// Pre-seeded demo accounts for the role switcher
+const DEMO_CREDENTIALS = {
+  mentor: { email: "sarah.mitchell@discipleship.demo", password: "demo1234" },
+  admin:  { email: "admin@discipleship.demo",          password: "demo1234" },
+};
 
 function getToken() {
   return localStorage.getItem(TOKEN_KEY);
@@ -33,7 +41,6 @@ async function request(path, options = {}, retries = 4) {
     try {
       const res = await fetch(`${API_URL}${path}`, { ...options, headers });
       if (!res.ok) {
-        // 5xx are transient (backend still warming up) — retry.
         if (res.status >= 500 && attempt < retries - 1) {
           await new Promise((r) => setTimeout(r, 2500));
           continue;
@@ -50,7 +57,6 @@ async function request(path, options = {}, retries = 4) {
       return res.json();
     } catch (err) {
       lastErr = err;
-      // TypeError from fetch = network error / connection refused.
       const transient =
         err.name === "TypeError" ||
         /Failed to fetch|NetworkError|reach/i.test(err.message);
@@ -63,7 +69,6 @@ async function request(path, options = {}, retries = 4) {
         }
         throw err;
       }
-      // Backend probably still spinning up — wait and retry.
       await new Promise((r) => setTimeout(r, 2500));
     }
   }
@@ -93,7 +98,54 @@ export const api = {
     localStorage.removeItem(PROFILE_KEY);
     localStorage.removeItem(MATCHES_KEY);
     localStorage.removeItem(REQUESTS_KEY);
+    localStorage.removeItem(MENTEE_TOKEN_KEY);
+    localStorage.removeItem(ROLE_KEY);
   },
+
+  /* ---- Role switcher ---- */
+
+  currentRole() {
+    return localStorage.getItem(ROLE_KEY) || "mentee";
+  },
+
+  async switchRole(role) {
+    if (role === "mentee") {
+      const menteeToken = localStorage.getItem(MENTEE_TOKEN_KEY);
+      if (!menteeToken) throw new Error("No mentee session to restore — please complete onboarding first.");
+      setToken(menteeToken);
+      localStorage.setItem(ROLE_KEY, "mentee");
+      return { role: "mentee" };
+    }
+
+    const creds = DEMO_CREDENTIALS[role];
+    if (!creds) throw new Error(`Unknown role: ${role}`);
+
+    // Save the current mentee token before switching away (only once)
+    const current = getToken();
+    if (current && !localStorage.getItem(MENTEE_TOKEN_KEY)) {
+      localStorage.setItem(MENTEE_TOKEN_KEY, current);
+    }
+
+    const data = await request("/v1/auth/login", {
+      method: "POST",
+      body: JSON.stringify(creds),
+    });
+    setToken(data.access_token);
+    localStorage.setItem(ROLE_KEY, role);
+    return data;
+  },
+
+  /* On page refresh: always restore the mentee session so the role switcher
+     starts clean. The mentor/admin demo role is session-scoped, not persistent. */
+  restoreMenteeOnRefresh() {
+    const menteeToken = localStorage.getItem(MENTEE_TOKEN_KEY);
+    if (menteeToken) {
+      setToken(menteeToken);
+      localStorage.setItem(ROLE_KEY, "mentee");
+    }
+  },
+
+  /* ---- Auth ---- */
 
   async signupMentee({ email, name }) {
     const useEmail = email && email.trim() ? email.trim() : emailFromName(name);
@@ -108,8 +160,13 @@ export const api = {
       }),
     });
     setToken(data.access_token);
+    // Save as the canonical mentee token for role-switching
+    localStorage.setItem(MENTEE_TOKEN_KEY, data.access_token);
+    localStorage.setItem(ROLE_KEY, "mentee");
     return { ...data, email: useEmail, password };
   },
+
+  /* ---- Profiles ---- */
 
   async saveProfile(profile) {
     const body = {
@@ -128,11 +185,15 @@ export const api = {
     return data;
   },
 
+  /* ---- Matches ---- */
+
   async findMatches(topK = 10) {
     const data = await request(`/v1/matches/find?top_k=${topK}`);
     localStorage.setItem(MATCHES_KEY, JSON.stringify(data.matches));
     return data.matches;
   },
+
+  /* ---- Requests ---- */
 
   async sendRequest({ mentorId, message }) {
     const data = await request("/v1/requests/", {
@@ -140,10 +201,9 @@ export const api = {
       body: JSON.stringify({
         mentor_id: mentorId,
         message: message || null,
-        via_admin: true, // route through pastoral admin
+        via_admin: true,
       }),
     });
-    // Track locally for UI badges
     const existing = JSON.parse(localStorage.getItem(REQUESTS_KEY) || "{}");
     existing[mentorId] = { status: data.status, request_id: data.id };
     localStorage.setItem(REQUESTS_KEY, JSON.stringify(existing));
@@ -154,7 +214,46 @@ export const api = {
     return request("/v1/requests/mine");
   },
 
-  /* ---------- Local cache reads (no network) ---------- */
+  async mentorDecision(requestId, action, reason = null) {
+    return request(`/v1/requests/${requestId}/decision`, {
+      method: "POST",
+      body: JSON.stringify({ action, reason }),
+    });
+  },
+
+  /* ---- Relationships ---- */
+
+  async myRelationships() {
+    return request("/v1/relationships/mine");
+  },
+
+  /* ---- Admin ---- */
+
+  async adminQueue() {
+    return request("/v1/admin/queue");
+  },
+
+  async adminUsers(role) {
+    return request(`/v1/admin/users?role=${role}`);
+  },
+
+  async adminToggleAccepting(mentorId) {
+    return request(`/v1/admin/mentors/${mentorId}/accepting`, { method: "PATCH" });
+  },
+
+  async adminShareRequest(requestId) {
+    return request(`/v1/requests/${requestId}/admin-share`, { method: "POST" });
+  },
+
+  async adminCancelRequest(requestId) {
+    return request(`/v1/admin/requests/${requestId}/cancel`, { method: "POST" });
+  },
+
+  async adminReports() {
+    return request("/v1/admin/reports");
+  },
+
+  /* ---- Local cache reads (no network) ---- */
   cachedMatches() {
     const raw = localStorage.getItem(MATCHES_KEY);
     return raw ? JSON.parse(raw) : null;

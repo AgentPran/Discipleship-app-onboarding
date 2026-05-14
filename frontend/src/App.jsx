@@ -4,6 +4,16 @@ import MainShell from "./components/MainShell.jsx";
 import { LoadingView, ErrorView } from "./components/Views.jsx";
 import { api } from "./api.js";
 
+const ROLE_DEFAULT_TAB = {
+  mentee: "journey",
+  mentor: "requests",
+  admin: "queue",
+};
+
+function isBackendUnavailable(err) {
+  return /Couldn't reach the backend|Failed to fetch|NetworkError/i.test(err?.message || "");
+}
+
 /**
  * App state machine:
  *   onboarding   → conversational profile builder
@@ -14,16 +24,19 @@ import { api } from "./api.js";
 export default function App() {
   const [view, setView] = useState("onboarding");
   const [userData, setUserData] = useState(null);
-  const [matches, setMatches] = useState(null);  // null = not fetched
+  const [matches, setMatches] = useState(null);
   const [matchesLoading, setMatchesLoading] = useState(false);
   const [requestStatus, setRequestStatus] = useState({});
   const [error, setError] = useState(null);
   const [initialTab, setInitialTab] = useState("journey");
+  const [demoRole, setDemoRole] = useState("mentee");
   const matchFetchInFlight = useRef(false);
 
-  // Restore session on refresh
+  // Restore mentee session on refresh (always resets to mentee role)
   useEffect(() => {
+    api.restoreMenteeOnRefresh();
     if (!api.isAuthenticated()) return;
+
     const cachedProfile = api.cachedProfile();
     const cachedMatches = api.cachedMatches();
     if (cachedProfile) {
@@ -39,6 +52,7 @@ export default function App() {
       });
       if (cachedMatches) setMatches(cachedMatches);
       setRequestStatus(api.cachedRequests());
+      setDemoRole("mentee");
       setView("main");
     }
   }, []);
@@ -52,7 +66,7 @@ export default function App() {
       setMatches(result);
     } catch (err) {
       console.error("Match fetch failed:", err);
-      setMatches([]);  // empty list rather than null so UI doesn't loop
+      setMatches([]);
     } finally {
       setMatchesLoading(false);
       matchFetchInFlight.current = false;
@@ -65,12 +79,20 @@ export default function App() {
     try {
       await api.signupMentee({ email: data.email, name: data.name });
       await api.saveProfile(data);
+      setDemoRole("mentee");
       setInitialTab("journey");
       setView("main");
-      // Kick off matches in the background — user can browse home immediately.
       fetchMatches();
     } catch (err) {
       console.error(err);
+      if (isBackendUnavailable(err)) {
+        setDemoRole("mentee");
+        setInitialTab("journey");
+        setMatches([]);
+        setRequestStatus({});
+        setView("main");
+        return;
+      }
       setError(err.message);
       setView("error");
     }
@@ -100,11 +122,24 @@ export default function App() {
     setMatchesLoading(false);
     setRequestStatus({});
     setError(null);
+    setDemoRole("mentee");
   };
 
   const handleSendRequest = async (mentorId, message) => {
     await api.sendRequest({ mentorId, message });
     setRequestStatus((s) => ({ ...s, [mentorId]: { status: "admin_review" } }));
+  };
+
+  const handleSwitchRole = async (role) => {
+    try {
+      await api.switchRole(role);
+      setDemoRole(role);
+      setInitialTab(ROLE_DEFAULT_TAB[role] || "journey");
+    } catch (err) {
+      console.error("Role switch failed:", err.message);
+      // Surface to user via a brief alert — adequate for a demo context
+      alert(`Could not switch role: ${err.message}`);
+    }
   };
 
   switch (view) {
@@ -124,6 +159,8 @@ export default function App() {
           onSendRequest={handleSendRequest}
           onLoadMatches={fetchMatches}
           onRestart={handleReset}
+          onSwitchRole={handleSwitchRole}
+          demoRole={demoRole}
           initialTab={initialTab}
         />
       );

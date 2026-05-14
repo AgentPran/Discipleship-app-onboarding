@@ -8,12 +8,12 @@ import { DoveIcon, DoveHero, Backdrop, GLOBAL_STYLE } from "./Visual.jsx";
 const CONVERSATION = [
   {
     id: "welcome", type: "intro",
-    message: "Hello, friend. I'm here to help you find someone who can walk this journey with you. Let's begin gently.",
+    message: "Hello there. I'm here to help you find someone who can walk this journey with you. Let's begin gently.",
     cta: "Begin",
   },
   {
     id: "name", type: "text",
-    message: "First — what shall I call you?",
+    message: "Hello there — what shall I call you?",
     field: "name", placeholder: "Your first name", skippable: true,
   },
   {
@@ -124,6 +124,21 @@ export default function MentorOnboarding({ onComplete }) {
     onComplete && onComplete(userData);
   };
 
+  const skipOnboarding = () => {
+    if (hasCalledComplete) return;
+    setHasCalledComplete(true);
+    onComplete && onComplete({
+      name: userData.name || "Friend",
+      email: userData.email || "",
+      lifeStage: userData.lifeStage || [],
+      support: userData.support || [],
+      strengths: userData.strengths || [],
+      faith: userData.faith || [],
+      interests: userData.interests || [],
+      description: userData.description || "",
+    });
+  };
+
   const pushBotMessage = (text, delay = 800) => {
     setIsTyping(true);
     setTimeout(() => {
@@ -221,38 +236,72 @@ export default function MentorOnboarding({ onComplete }) {
       <div className="phone-shell">
         <Backdrop />
 
-        <header className="relative z-10 px-5 py-4 flex items-center justify-between shrink-0">
-          <div className="flex items-center gap-2.5">
-            <DoveIcon size={26} />
-            <div>
-              <div className="text-base font-semibold leading-none" style={{ color: "#5A4E6B" }}>Discipleship</div>
-              <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: "#9B8FB5" }}>Walk with a mentor</div>
-            </div>
-          </div>
-          {!showIntro && !isDone && (
-            <div className="flex items-center gap-2 w-28">
-              <div className="progress-track flex-1">
-                <div className="progress-fill" style={{ width: `${(stepIdx / (totalSteps - 1)) * 100}%` }} />
+        {/* Header is hidden on the intro screen so the image can be full-bleed */}
+        {!showIntro && (
+          <header className="relative z-10 px-5 py-4 flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2.5">
+              <DoveIcon size={26} />
+              <div>
+                <div className="text-base font-semibold leading-none" style={{ color: "#5A4E6B" }}>Discipleship</div>
+                <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: "#9B8FB5" }}>Walk with a mentor</div>
               </div>
-              <span className="text-[10px] tabular-nums" style={{ color: "#9B8FB5" }}>{stepIdx}/{totalSteps - 1}</span>
             </div>
-          )}
-        </header>
+            {!isDone && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 w-24">
+                  <div className="progress-track flex-1">
+                    <div className="progress-fill" style={{ width: `${(stepIdx / (totalSteps - 1)) * 100}%` }} />
+                  </div>
+                  <span className="text-[10px] tabular-nums" style={{ color: "#9B8FB5" }}>{stepIdx}/{totalSteps - 1}</span>
+                </div>
+                <button onClick={skipOnboarding} className="skip-btn rounded-full px-2.5 py-1 uppercase">
+                  Skip setup
+                </button>
+              </div>
+            )}
+          </header>
+        )}
 
         {showIntro && (
-          <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6 pb-10">
-            <div className="intro-enter">
-              <div className="dove-bob mb-2"><DoveHero /></div>
-              <h1 className="text-4xl mb-3 leading-tight" style={{ color: "#5A4E6B", fontWeight: 300, letterSpacing: "-0.01em" }}>
-                Be <em style={{ fontStyle: "italic", fontWeight: 400, color: "#B5A0DD" }}>known</em>,<br />before you're matched.
-              </h1>
-              <p className="text-sm leading-relaxed mb-8 max-w-xs mx-auto" style={{ color: "#7A6E89" }}>
-                A few gentle questions. No forms. Just a conversation about who you are and what you need.
+          <div className="relative z-10 flex-1 flex flex-col" style={{ overflow: "hidden" }}>
+            {/* Full-bleed Jesus watercolor */}
+            <img
+              src="/jesus.jpg"
+              alt=""
+              style={{
+                position: "absolute", inset: 0,
+                width: "100%", height: "100%",
+                objectFit: "cover", objectPosition: "center 10%",
+              }}
+            />
+            {/* Gradient fade — transparent top, solid white at bottom */}
+            <div style={{
+              position: "absolute", inset: 0,
+              background: "linear-gradient(to bottom, transparent 35%, rgba(253,250,251,0.85) 62%, #FDFAFB 78%)",
+            }} />
+            <button
+              onClick={skipOnboarding}
+              className="skip-btn absolute right-4 top-4 z-20 rounded-full px-3 py-1.5 uppercase"
+            >
+              Skip setup
+            </button>
+
+            {/* Content pinned to bottom */}
+            <div className="intro-enter relative z-10 flex-1 flex flex-col justify-end items-center text-center px-6 pb-10">
+              <p className="text-[18px] leading-snug mb-1"
+                style={{ color: "#5A4E6B", fontWeight: 300, fontStyle: "italic", maxWidth: 280 }}>
+                "Follow me and be my disciple,"
               </p>
-              <button onClick={startConversation} className="primary-btn px-8 py-3.5 rounded-full text-sm uppercase tracking-widest font-medium inline-flex items-center gap-2">
+              <p className="text-[11px] uppercase tracking-[0.18em] mb-9" style={{ color: "#B5A0DD" }}>
+                Matthew 9 : 9
+              </p>
+
+              <button
+                onClick={startConversation}
+                className="primary-btn px-10 py-3.5 rounded-full text-sm uppercase tracking-widest font-medium inline-flex items-center gap-2 w-full max-w-xs justify-center"
+              >
                 Begin <ArrowRight size={15} />
               </button>
-              <p className="text-[11px] mt-5" style={{ color: "#9B8FB5" }}>About 3 minutes · skip anything you'd rather not answer</p>
             </div>
           </div>
         )}
@@ -261,6 +310,11 @@ export default function MentorOnboarding({ onComplete }) {
           <main className="relative z-10 flex-1 flex flex-col min-h-0">
             <div ref={scrollRef} className="scroll flex-1 overflow-y-auto px-4">
               <div className="py-5 space-y-4">
+                <div className="msg-enter text-center">
+                  <span className="inline-flex rounded-full px-3 py-1 text-[11px] bg-white/70 border border-purple-100" style={{ color: "#9B8FB5" }}>
+                    Profile setup only takes a few minutes. Skip anything you would rather not answer.
+                  </span>
+                </div>
                 {history.map((m) => (<MessageBubble key={m.id} message={m} />))}
                 {isTyping && (
                   <div className="msg-enter flex items-end gap-2">

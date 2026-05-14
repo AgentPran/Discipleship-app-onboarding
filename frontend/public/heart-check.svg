@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 480" role="img" aria-label="Heart check pixel art">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#c9f1d6"/>
+      <stop offset="0.46" stop-color="#fff3b8"/>
+      <stop offset="1" stop-color="#f7d5d7"/>
+    </linearGradient>
+    <filter id="pixel">
+      <feComponentTransfer>
+        <feFuncR type="discrete" tableValues="0 .16 .32 .48 .64 .8 1"/>
+        <feFuncG type="discrete" tableValues="0 .16 .32 .48 .64 .8 1"/>
+        <feFuncB type="discrete" tableValues="0 .16 .32 .48 .64 .8 1"/>
+      </feComponentTransfer>
+    </filter>
+  </defs>
+  <rect width="720" height="480" fill="url(#bg)"/>
+  <g opacity=".28" fill="none" stroke="#7ccbb9" stroke-width="4">
+    <path d="M0 52h90M0 104h90M630 52h90M630 104h90M0 376h90M0 428h90M630 376h90M630 428h90"/>
+    <path d="M52 0v132M104 0v132M616 0v132M668 0v132M52 348v132M104 348v132M616 348v132M668 348v132"/>
+  </g>
+  <g filter="url(#pixel)">
+    <rect x="244" y="67" width="232" height="42" rx="4" fill="#fff2a4" stroke="#b894d9" stroke-width="8"/>
+    <text x="360" y="98" text-anchor="middle" font-family="monospace" font-size="28" font-weight="800" fill="#8c78c5">HEART CHECK</text>
+    <path d="M358 178c-38-70-150-54-158 42-9 112 158 186 158 186s167-74 158-186c-8-96-120-112-158-42z" fill="#f69cba" stroke="#7eb9a9" stroke-width="18"/>
+    <path d="M358 209c-27-48-105-38-111 28-7 76 111 128 111 128s118-52 111-128c-6-66-84-76-111-28z" fill="#f49ab7" stroke="#a082cc" stroke-width="12" opacity=".95"/>
+    <path d="M234 257h56l18-24 28 54 24-36h36l18-24 28 54 19-24h38" fill="none" stroke="#d8ffd2" stroke-width="8"/>
+    <path d="M392 280h24l-12-13z" fill="#d8ffd2"/>
+    <circle cx="236" cy="283" r="44" fill="#b9d8f6" stroke="#466592" stroke-width="12"/>
+    <circle cx="236" cy="283" r="27" fill="#d6efff" opacity=".78"/>
+    <path d="M199 316l-82 76" stroke="#466592" stroke-width="18" stroke-linecap="round"/>
+    <path d="M128 390c-28 25-69-14-42-42 18-19 48 1 34 24" fill="none" stroke="#56b6ad" stroke-width="18" stroke-linecap="round"/>
+    <path d="M501 199c72 5 82 63 55 114-28 54-4 93 50 69 39-18 38-80 8-108" fill="none" stroke="#4b5f86" stroke-width="15" stroke-linecap="round"/>
+    <path d="M501 199c72 5 82 63 55 114-28 54-4 93 50 69 39-18 38-80 8-108" fill="none" stroke="#a6d8f3" stroke-width="8" stroke-linecap="round"/>
+    <circle cx="499" cy="199" r="20" fill="#f7b27e" stroke="#4b5f86" stroke-width="8"/>
+    <circle cx="612" cy="274" r="18" fill="#f7b27e" stroke="#4b5f86" stroke-width="8"/>
+    <text x="458" y="292" font-family="monospace" font-size="20" font-weight="800" fill="#d8ffd2">92 BPM</text>
+    <g fill="#c49be9">
+      <path d="M126 134h18v18h-18zM144 116h18v18h-18zM144 152h18v18h-18zM162 134h18v18h-18z"/>
+      <path d="M556 91h18v18h-18zM574 73h18v18h-18zM574 109h18v18h-18zM592 91h18v18h-18z"/>
+      <path d="M569 353h18v18h-18zM587 335h18v18h-18zM587 371h18v18h-18zM605 353h18v18h-18z"/>
+    </g>
+    <g fill="#f49ab7">
+      <rect x="105" y="89" width="48" height="18" rx="3" transform="rotate(-22 129 98)"/>
+      <rect x="559" y="414" width="48" height="18" rx="3" transform="rotate(-22 583 423)"/>
+      <rect x="88" y="405" width="48" height="18" rx="3" transform="rotate(32 112 414)"/>
+    </g>
+  </g>
+</svg>

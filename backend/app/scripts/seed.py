@@ -1,24 +1,31 @@
-"""Seed the database with synthetic mentors and an admin user.
+"""Seed the database with synthetic mentors, an admin user, and demo mentees.
 
 Run inside the api container (docker-compose runs it automatically on startup):
 
     python -m app.scripts.seed
 
-Idempotent — checks for the seed admin and skips if found.
+Idempotent — each section checks for its own sentinel before running.
 """
 import sys
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import SessionLocal
-from app.models import MentorOffering, Profile, User
+from app.models import MentorOffering, MentoringRelationship, MentoringRequest, Profile, User
 from app.matching.categories import classify_description
 from app.matching.embeddings import embed_batch
+from app.matching.matcher import score_mentor
 from app.matching.stages import faith_level, life_level
 from app.security import hash_password
 
 ADMIN_EMAIL = "admin@discipleship.demo"
 DEMO_PASSWORD = "demo1234"
+
+# The demo mentor the role switcher logs in as
+DEMO_MENTOR_EMAIL = "sarah.mitchell@discipleship.demo"
+
+# Sentinel for the demo-request section
+DEMO_MENTEE_EMAIL = "alex.johnson@discipleship.demo"
 
 MENTORS = [
     {
@@ -214,68 +221,255 @@ MENTORS = [
     },
 ]
 
+# Demo mentees for populating the admin queue and mentor views
+DEMO_MENTEES = [
+    {
+        "name": "Alex Johnson",
+        "email": "alex.johnson@discipleship.demo",
+        "life_stage": ["Starting my career"],
+        "faith_stage": ["Exploring faith"],
+        "support_areas": ["Career & finances", "Spiritual growth"],
+        "strengths": ["Curiosity", "Hope", "Zest for life", "Honesty"],
+        "interests": ["Reading", "Coffee", "Travel", "Fitness"],
+        "description": (
+            "I'm 24 and just started my first job in marketing after graduating. "
+            "I grew up going to church but drifted away in university — now I'm "
+            "finding my way back, slowly. I'd love a mentor who's navigated work "
+            "and faith without having it all figured out."
+        ),
+    },
+    {
+        "name": "Emma Williams",
+        "email": "emma.williams@discipleship.demo",
+        "life_stage": ["Marriage & coupledom", "Starting my career"],
+        "faith_stage": ["Growing believer"],
+        "support_areas": ["Relationships & marriage", "Healing & personal life"],
+        "strengths": ["Kindness", "Capacity to love", "Hope", "Forgiveness"],
+        "interests": ["Reading", "Crafts", "Tea", "Gardening"],
+        "description": (
+            "Newly married, 27. My husband and I are figuring out how to build a "
+            "life together that honours God and each other. I've also had some hard "
+            "family history I'm still working through. I'm looking for someone "
+            "patient and warm who can walk with me in all of it."
+        ),
+    },
+    {
+        "name": "Chris Davies",
+        "email": "chris.davies@discipleship.demo",
+        "life_stage": ["Starting my career"],
+        "faith_stage": ["Exploring faith"],
+        "support_areas": ["Career & finances", "Relationships & marriage"],
+        "strengths": ["Perseverance", "Honesty", "Hope"],
+        "interests": ["Coffee", "Reading", "Sports"],
+        "description": (
+            "First year in corporate finance. Grew up in church and still believe "
+            "but haven't been plugged in for years. Looking for someone grounded "
+            "who can help me think through work, faith, and relationships."
+        ),
+    },
+]
+
+
+def _get_user(db: Session, email: str):
+    return db.execute(select(User).where(User.email == email)).scalar_one_or_none()
+
+
+def _seed_admin_and_mentors(db: Session) -> None:
+    if _get_user(db, ADMIN_EMAIL):
+        print("✓ Admin + mentors already seeded — skipping.")
+        return
+
+    print("Seeding admin user…")
+    db.add(User(
+        email=ADMIN_EMAIL,
+        password_hash=hash_password(DEMO_PASSWORD),
+        name="Pastoral Team",
+        role="admin",
+    ))
+
+    print(f"Seeding {len(MENTORS)} mentor profiles…")
+    print("  Computing embeddings (first run downloads ~80MB — this may take a few minutes)…")
+    descriptions = [m["description"] for m in MENTORS]
+    embeddings = embed_batch(descriptions)
+    print("  ✓ Embeddings ready")
+
+    for i, m in enumerate(MENTORS):
+        user = User(
+            email=m["email"],
+            password_hash=hash_password(DEMO_PASSWORD),
+            name=m["name"],
+            role="mentor",
+        )
+        db.add(user)
+        db.flush()
+
+        db.add(Profile(
+            user_id=user.id,
+            life_stage=m["life_stage"],
+            life_stage_level=life_level(m["life_stage"]),
+            faith_stage=m["faith_stage"],
+            faith_stage_level=faith_level(m["faith_stage"]),
+            support_areas=m["support_areas"],
+            strengths=m["strengths"],
+            interests=m["interests"],
+            description=m["description"],
+            description_embedding=embeddings[i],
+            categories=classify_description(m["description"]),
+        ))
+
+        db.add(MentorOffering(
+            user_id=user.id,
+            can_support=m["can_support"],
+            capacity=3,
+            current_load=0,
+            accepting_new=True,
+        ))
+        print(f"  ✓ {m['name']}")
+
+    db.commit()
+    print(f"\n✓ Done. {len(MENTORS)} mentors + 1 admin.")
+    print(f"  Demo password for everyone: {DEMO_PASSWORD}")
+    print(f"  Admin login: {ADMIN_EMAIL}")
+
+
+def _seed_demo_mentees_and_requests(db: Session) -> None:
+    """Seed demo mentees with requests in various statuses for the role-switcher demo."""
+    if _get_user(db, DEMO_MENTEE_EMAIL):
+        print("✓ Demo mentees already seeded — skipping.")
+        return
+
+    sarah = _get_user(db, DEMO_MENTOR_EMAIL)
+    rachel = _get_user(db, "rachel.thompson@discipleship.demo")
+    daniel = _get_user(db, "daniel.osullivan@discipleship.demo")
+
+    if not sarah:
+        print("! Mentors not seeded yet — skipping demo mentees.")
+        return
+
+    print("Seeding demo mentees…")
+    descriptions = [m["description"] for m in DEMO_MENTEES]
+    embeddings = embed_batch(descriptions)
+    print("  ✓ Mentee embeddings ready")
+
+    mentee_users = []
+    for i, m in enumerate(DEMO_MENTEES):
+        user = User(
+            email=m["email"],
+            password_hash=hash_password(DEMO_PASSWORD),
+            name=m["name"],
+            role="mentee",
+        )
+        db.add(user)
+        db.flush()
+
+        db.add(Profile(
+            user_id=user.id,
+            life_stage=m["life_stage"],
+            life_stage_level=life_level(m["life_stage"]),
+            faith_stage=m["faith_stage"],
+            faith_stage_level=faith_level(m["faith_stage"]),
+            support_areas=m["support_areas"],
+            strengths=m["strengths"],
+            interests=m["interests"],
+            description=m["description"],
+            description_embedding=embeddings[i],
+            categories=classify_description(m["description"]),
+        ))
+        mentee_users.append(user)
+        print(f"  ✓ {m['name']}")
+
+    alex, emma, chris = mentee_users
+
+    # Refresh so SQLAlchemy can lazy-load profiles for score_mentor
+    db.flush()
+    for u in [alex, emma, chris, sarah, rachel, daniel]:
+        db.refresh(u)
+
+    # Admin queue: Alex → Sarah (admin_review)
+    exp = score_mentor(sarah, alex)
+    db.add(MentoringRequest(
+        mentee_id=alex.id,
+        mentor_id=sarah.id,
+        status="admin_review",
+        initiated_by="mentee",
+        match_score=exp["score"],
+        match_explanation=exp,
+        message="I've been really inspired by what I've heard about Sarah's work in marketing. I'd love to learn from her.",
+    ))
+
+    # Admin queue: Alex → Rachel (admin_review)
+    if rachel:
+        exp2 = score_mentor(rachel, alex)
+        db.add(MentoringRequest(
+            mentee_id=alex.id,
+            mentor_id=rachel.id,
+            status="admin_review",
+            initiated_by="mentee",
+            match_score=exp2["score"],
+            match_explanation=exp2,
+            message=None,
+        ))
+
+    # Admin queue: Emma → Daniel (admin_review)
+    if daniel:
+        exp3 = score_mentor(daniel, emma)
+        db.add(MentoringRequest(
+            mentee_id=emma.id,
+            mentor_id=daniel.id,
+            status="admin_review",
+            initiated_by="mentee",
+            match_score=exp3["score"],
+            match_explanation=exp3,
+            message="We're newly married and I think Daniel's background in marriage counselling would be so helpful.",
+        ))
+
+    # Mentor requests view: Emma → Sarah (shared_with_mentor — waiting for Sarah's decision)
+    exp4 = score_mentor(sarah, emma)
+    db.add(MentoringRequest(
+        mentee_id=emma.id,
+        mentor_id=sarah.id,
+        status="shared_with_mentor",
+        initiated_by="mentee",
+        match_score=exp4["score"],
+        match_explanation=exp4,
+        message="I'd love someone who understands navigating faith and marriage at the same time.",
+    ))
+
+    # Mentor mentees view: Chris → Sarah (accepted + active relationship)
+    exp5 = score_mentor(sarah, chris)
+    req = MentoringRequest(
+        mentee_id=chris.id,
+        mentor_id=sarah.id,
+        status="accepted",
+        initiated_by="mentee",
+        match_score=exp5["score"],
+        match_explanation=exp5,
+        message=None,
+    )
+    db.add(req)
+    db.flush()
+
+    db.add(MentoringRelationship(
+        mentor_id=sarah.id,
+        mentee_id=chris.id,
+        request_id=req.id,
+        status="active",
+    ))
+
+    # Increment Sarah's current_load
+    sarah.mentor_offering.current_load = 1
+
+    db.commit()
+    print("\n✓ Demo mentees + requests seeded.")
+    print(f"  Demo mentor login: {DEMO_MENTOR_EMAIL} / {DEMO_PASSWORD}")
+    print(f"  Admin login:       {ADMIN_EMAIL} / {DEMO_PASSWORD}")
+
 
 def seed() -> None:
     db: Session = SessionLocal()
     try:
-        existing = db.execute(
-            select(User).where(User.email == ADMIN_EMAIL)
-        ).scalar_one_or_none()
-        if existing:
-            print("✓ Seed already exists — skipping.")
-            return
-
-        print("Seeding admin user…")
-        db.add(User(
-            email=ADMIN_EMAIL,
-            password_hash=hash_password(DEMO_PASSWORD),
-            name="Pastoral Team",
-            role="admin",
-        ))
-
-        print(f"Seeding {len(MENTORS)} mentor profiles…")
-        print("  Computing embeddings (first run downloads ~80MB model — this may take a few minutes)…")
-        descriptions = [m["description"] for m in MENTORS]
-        embeddings = embed_batch(descriptions)
-        print("  ✓ Embeddings ready")
-
-        for i, m in enumerate(MENTORS):
-            user = User(
-                email=m["email"],
-                password_hash=hash_password(DEMO_PASSWORD),
-                name=m["name"],
-                role="mentor",
-            )
-            db.add(user)
-            db.flush()  # get user.id
-
-            db.add(Profile(
-                user_id=user.id,
-                life_stage=m["life_stage"],
-                life_stage_level=life_level(m["life_stage"]),
-                faith_stage=m["faith_stage"],
-                faith_stage_level=faith_level(m["faith_stage"]),
-                support_areas=m["support_areas"],
-                strengths=m["strengths"],
-                interests=m["interests"],
-                description=m["description"],
-                description_embedding=embeddings[i],
-                categories=classify_description(m["description"]),
-            ))
-
-            db.add(MentorOffering(
-                user_id=user.id,
-                can_support=m["can_support"],
-                capacity=3,
-                current_load=0,
-                accepting_new=True,
-            ))
-            print(f"  ✓ {m['name']}")
-
-        db.commit()
-        print(f"\n✓ Done. {len(MENTORS)} mentors + 1 admin.")
-        print(f"  Demo password for everyone: {DEMO_PASSWORD}")
-        print(f"  Admin login: {ADMIN_EMAIL}")
+        _seed_admin_and_mentors(db)
+        _seed_demo_mentees_and_requests(db)
     except Exception:
         db.rollback()
         raise

@@ -122,24 +122,32 @@ def my_requests(
     db: Session = Depends(get_db),
     current: User = Depends(get_current_user),
 ):
-    """List requests where I'm the mentor or the mentee."""
+    """List requests where I'm the mentor or the mentee, including the other party's profile."""
     stmt = select(MentoringRequest).where(
         (MentoringRequest.mentee_id == current.id)
         | (MentoringRequest.mentor_id == current.id)
     ).order_by(MentoringRequest.created_at.desc())
     rows = db.execute(stmt).scalars().all()
-    return {
-        "requests": [
-            {
-                "id": str(r.id),
-                "mentor_id": str(r.mentor_id),
-                "mentee_id": str(r.mentee_id),
-                "status": r.status,
-                "match_score": r.match_score,
-                "match_explanation": r.match_explanation,
-                "message": r.message,
-                "created_at": r.created_at.isoformat() if r.created_at else None,
-            }
-            for r in rows
-        ]
-    }
+
+    result = []
+    for r in rows:
+        other_id = r.mentee_id if current.role == "mentor" else r.mentor_id
+        other = db.get(User, other_id)
+        p = other.profile if other else None
+        result.append({
+            "id": str(r.id),
+            "mentor_id": str(r.mentor_id),
+            "mentee_id": str(r.mentee_id),
+            "status": r.status,
+            "match_score": r.match_score,
+            "match_explanation": r.match_explanation,
+            "message": r.message,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "other_name": other.name if other else None,
+            "other_life_stage": p.life_stage if p else [],
+            "other_faith_stage": p.faith_stage if p else [],
+            "other_support_areas": p.support_areas if p else [],
+            "other_strengths": p.strengths if p else [],
+            "other_description": p.description if p else None,
+        })
+    return {"requests": result}

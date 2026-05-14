@@ -93,3 +93,4 @@ class RequestOut(BaseModel):
 
 class RequestDecision(BaseModel):
     action: str = Field(pattern="^(accept|decline)$")
+    reason: Optional[str] = None  # mentor's optional decline reason, stored for pastoral learning

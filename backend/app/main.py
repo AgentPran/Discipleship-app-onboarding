@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.api import auth, profiles, matches, requests as requests_api
+from app.api import auth, profiles, matches, requests as requests_api, admin, relationships
 
 log = logging.getLogger("uvicorn.error")
 _ready = {"value": False}
@@ -52,6 +52,8 @@ app.include_router(auth.router, prefix="/v1/auth", tags=["auth"])
 app.include_router(profiles.router, prefix="/v1/profiles", tags=["profiles"])
 app.include_router(matches.router, prefix="/v1/matches", tags=["matches"])
 app.include_router(requests_api.router, prefix="/v1/requests", tags=["requests"])
+app.include_router(admin.router, prefix="/v1/admin", tags=["admin"])
+app.include_router(relationships.router, prefix="/v1/relationships", tags=["relationships"])
 
 
 @app.get("/health")

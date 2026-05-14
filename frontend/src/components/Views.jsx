@@ -23,7 +23,7 @@ export function LoadingView({ message }) {
       <div className="phone-shell">
         <Backdrop />
         <div className="relative z-10 flex-1 flex flex-col items-center justify-center text-center px-6">
-          <div className="dove-bob mb-3"><DoveHero /></div>
+          <div className="dove-bob mb-3"><DoveHero animated /></div>
           <p className="text-base mt-2 transition-opacity" style={{ color: "#5A4E6B" }} key={message || idx}>
             {message || LOADING_LINES[idx]}
           </p>

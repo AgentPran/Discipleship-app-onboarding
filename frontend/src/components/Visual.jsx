@@ -17,7 +17,7 @@ export function DoveIcon({ size = 28 }) {
   );
 }
 
-export function DoveHero() {
+export function DoveHero({ animated = false }) {
   return (
     <svg width="160" height="160" viewBox="0 0 200 200" fill="none">
       <defs>
@@ -34,7 +34,7 @@ export function DoveHero() {
       <circle cx="100" cy="100" r="95" fill="url(#halo)" />
       <path d="M50 110 L20 100 L24 122 L48 120 Z" fill="url(#bodyGrad)" stroke="#9B8FB5" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M48 120 Q44 96, 64 88 L120 84 Q148 92, 144 116 Q138 132, 110 134 Q70 130, 48 120 Z" fill="url(#bodyGrad)" stroke="#9B8FB5" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M70 96 Q72 50, 110 40 Q142 44, 150 68 Q124 76, 108 96 Z" fill="url(#bodyGrad)" stroke="#9B8FB5" strokeWidth="1.5" strokeLinejoin="round" />
+      <path className={animated ? "dove-hero-wing" : undefined} d="M70 96 Q72 50, 110 40 Q142 44, 150 68 Q124 76, 108 96 Z" fill="url(#bodyGrad)" stroke="#9B8FB5" strokeWidth="1.5" strokeLinejoin="round" />
       <path d="M90 60 Q108 56, 130 60" stroke="#C9B8E8" strokeWidth="1" fill="none" />
       <path d="M88 72 Q108 68, 134 72" stroke="#C9B8E8" strokeWidth="1" fill="none" />
       <path d="M88 84 Q108 80, 138 84" stroke="#C9B8E8" strokeWidth="1" fill="none" />
@@ -196,6 +196,15 @@ export const GLOBAL_STYLE = `
   @keyframes introIn { from { opacity: 0; transform: scale(0.94) translateY(16px); } to { opacity: 1; transform: scale(1) translateY(0); } }
   .dove-bob { animation: bob 4s ease-in-out infinite; }
   @keyframes bob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+  .dove-hero-wing {
+    transform-box: fill-box;
+    transform-origin: 20% 95%;
+    animation: heroWingFlap 0.9s ease-in-out infinite alternate;
+  }
+  @keyframes heroWingFlap {
+    0%   { transform: rotate(6deg); }
+    100% { transform: rotate(-26deg); }
+  }
   .progress-track { height: 3px; background: rgba(155, 143, 181, 0.15); border-radius: 3px; overflow: hidden; }
   .progress-fill {
     height: 100%;
@@ -305,6 +314,23 @@ export const GLOBAL_STYLE = `
   .tab-label {
     font-size: 10px; letter-spacing: 0.02em; font-weight: 500;
     position: relative; z-index: 1;
+  }
+
+  .confetti-dot {
+    position: absolute;
+    animation: confettiFall linear forwards;
+  }
+  @keyframes confettiFall {
+    0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+    100% { transform: translateY(110px) rotate(400deg); opacity: 0; }
+  }
+  .celebrate-scale {
+    animation: celebrateIn 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+  @keyframes celebrateIn {
+    0%   { transform: scale(0.7); opacity: 0; }
+    70%  { transform: scale(1.06); }
+    100% { transform: scale(1); opacity: 1; }
   }
 
   /* ─── Liquid Glass — generic card variant ─── */

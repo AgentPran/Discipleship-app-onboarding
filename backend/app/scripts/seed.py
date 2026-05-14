@@ -100,7 +100,7 @@ MENTORS = [
         "support_areas": ["Career & finances", "Healing & personal life", "Spiritual growth"],
         "can_support": ["Career & finances", "Healing & personal life", "Spiritual growth"],
         "strengths": ["Bravery", "Wisdom", "Capacity to love", "Hope", "Spirituality", "Perseverance"],
-        "interests": ["Reading", "Worship music", "Yoga", "Writing"],
+        "interests": ["Reading", "Worship music", "Writing"],
         "description": (
             "I'm a doctor and a mother of two young children. I've worked through "
             "anxiety, postpartum depression, and the relentless guilt of working "

@@ -1,0 +1,48 @@
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: discipleship
+      POSTGRES_PASSWORD: discipleship
+      POSTGRES_DB: discipleship
+    ports: ["5432:5432"]
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U discipleship"]
+      interval: 5s
+      retries: 10
+
+  # One-shot: runs migrations + seed, then exits.
+  # On subsequent `docker compose up`, seed is idempotent — it sees the admin
+  # user exists and returns immediately, so this service is effectively a no-op.
+  seed:
+    build: .
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+psycopg://discipleship:discipleship@db:5432/discipleship
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    command: sh -c "alembic upgrade head && python -m app.scripts.seed"
+    restart: "no"
+
+  api:
+    build: .
+    depends_on:
+      seed:
+        condition: service_completed_successfully
+    environment:
+      DATABASE_URL: postgresql+psycopg://discipleship:discipleship@db:5432/discipleship
+      SECRET_KEY: dev-only-change-in-prod
+    ports: ["8000:8000"]
+    volumes:
+      - hf_cache:/root/.cache/huggingface
+    # No --reload, no source bind-mount: model loads once via lifespan, stays warm.
+    # If you're actively editing backend code, add `- ./:/app` and `--reload` back.
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+volumes:
+  dbdata:
+  hf_cache:
